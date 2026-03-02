@@ -117,14 +117,13 @@ def send_feedback():
     if not sender_name or not sender_email or not message:
         return jsonify({'success': False, 'message': 'Data tidak lengkap!'})
 
-    MY_EMAIL = "oziyy77@gmail.com"
-    
-    # Python akan otomatis mencari password di brankas Vercel
+    # Mengambil Email dan Password dari Brankas Vercel (ENV)
+    MY_EMAIL = os.getenv('EMAIL_ADDRESS')
     APP_PASSWORD = os.getenv('EMAIL_APP_PASSWORD')
 
-    # Cegah error website kalau Ozi lupa masukin password di Vercel
-    if not APP_PASSWORD:
-        return jsonify({'success': False, 'message': 'Sistem email sedang dalam perbaikan (ENV belum di-setting).'})
+    # Cegah error website kalau Ozi lupa masukin ENV di Vercel
+    if not MY_EMAIL or not APP_PASSWORD:
+        return jsonify({'success': False, 'message': 'Sistem email sedang dalam perbaikan (ENV belum lengkap).'})
 
     msg = MIMEMultipart()
     msg['From'] = f"{sender_name} via Downloader <{MY_EMAIL}>" 
