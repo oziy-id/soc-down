@@ -52,18 +52,22 @@ def get_info():
     if not url:
         return jsonify({'success': False, 'message': 'Tautan tidak boleh kosong!'})
 
-    # Bypass URL Twitter/X
     url = url.replace('https://x.com/', 'https://twitter.com/')
     url = url.replace('x.com', 'twitter.com')
 
-    # --- FITUR BARU: PEMBERSIH LINK YOUTUBE ---
-    # Menghapus embel-embel '?si=xxx' yang bikin error
     if 'youtu.be/' in url:
         url = url.split('?')[0]
     elif 'youtube.com/watch' in url:
         url = url.split('&si=')[0]
 
-    ydl_opts = {'quiet': True, 'no_warnings': True}
+    # --- TRIK JUBAH PENYAMARAN ANTI-BOT YOUTUBE ---
+    ydl_opts = {
+        'quiet': True, 
+        'no_warnings': True,
+        'extractor_args': {
+            'youtube': ['player_client=android,web'] # Menyamar sebagai HP Android
+        }
+    }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -131,7 +135,6 @@ def get_info():
         })
 
     except Exception as e:
-        # Menampilkan pesan error asli dari server YouTube/TikTok agar gampang dianalisa
         return jsonify({'success': False, 'message': f'Error Server: {str(e)}'})
 
 @app.route('/api/send-feedback', methods=['POST'])
