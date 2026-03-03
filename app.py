@@ -7,6 +7,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
+import requests # Alat Radar MB
 
 app = Flask(__name__)
 
@@ -14,7 +15,6 @@ app = Flask(__name__)
 def home():
     return render_template('index.html')
 
-# SUPER PROXY THUMBNAIL (Anti-Gambar Patah Instagram & TikTok)
 @app.route('/api/proxy-thumb')
 def proxy_thumb():
     img_url = request.args.get('url')
@@ -22,17 +22,27 @@ def proxy_thumb():
         return redirect("https://via.placeholder.com/300x180?text=Tidak+Ada+Thumbnail")
     try:
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Referer': 'https://www.instagram.com/',
-            'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
         }
         req = urllib.request.Request(img_url, headers=headers)
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=5) as response:
             img_data = response.read()
             mime_type = response.headers.get('Content-Type', 'image/jpeg')
             return send_file(BytesIO(img_data), mimetype=mime_type)
     except Exception as e:
-        return redirect("https://via.placeholder.com/300x180?text=Thumbnail+Privasi+(Aman+Diunduh)")
+        return redirect("https://via.placeholder.com/300x180?text=Thumbnail+Privasi+(Aman)")
+
+# FUNGSI RADAR: Mengecek MB secara real tanpa mendownload full video
+def get_real_size(url):
+    try:
+        r = requests.head(url, timeout=2, allow_redirects=True)
+        if 'Content-Length' in r.headers:
+            size_bytes = int(r.headers['Content-Length'])
+            return f"{round(size_bytes / (1024*1024), 2)} MB"
+    except:
+        pass
+    return "Ukuran Asli" # Jika server sosmed benar-benar mengunci infonya
 
 @app.route('/api/get-info', methods=['POST'])
 def get_info():
@@ -43,7 +53,6 @@ def get_info():
     if not url:
         return jsonify({'success': False, 'message': 'Tautan tidak boleh kosong!'})
 
-    # Bypass URL Twitter/X
     url = url.replace('https://x.com/', 'https://twitter.com/')
     url = url.replace('x.com', 'twitter.com')
 
@@ -60,40 +69,59 @@ def get_info():
             safe_thumb_url = urllib.parse.quote(raw_thumb, safe='')
             thumbnail = f"/api/proxy-thumb?url={safe_thumb_url}"
         else:
-            thumbnail = "https://via.placeholder.com/300x180?text=Thumbnail+Privasi+(Aman+Diunduh)"
+            thumbnail = "https://via.placeholder.com/300x180?text=Thumbnail+Privasi+(Aman)"
         
         available_formats = []
         seen_res = set()
         
         for f in info.get('formats', []):
-            h = f.get('height')
+            h = f.get('height') or 0
             vcodec = f.get('vcodec')
             acodec = f.get('acodec')
+            format_note = str(f.get('format_note', '')).lower()
 
-            # FILTER VERCEL: Ambil video gabungan suara, maksimal 720p
-            if vcodec != 'none' and acodec != 'none':
-                if h and h <= 720 and h >= 144: 
-                    if h not in seen_res:
-                        seen_res.add(h)
+            # Syarat lolos: Punya gambar & suara, ATAU khusus tiktok (watermark logic)
+            if (vcodec != 'none' and acodec != 'none') or ('watermark' in format_note):
+                # Batasi maksimal 720p agar Vercel aman
+                if h <= 720: 
+                    # Filter agar tidak duplikat resolusi
+                    if h not in seen_res or h == 0:
+                        if h > 0: seen_res.add(h)
+                        
+                        # Cek MB Real
                         size = f.get('filesize') or f.get('filesize_approx')
-                        size_str = f"{round(size / (1024*1024), 2)} MB" if size else "Ukuran Optimal" 
+                        if size:
+                            size_str = f"{round(size / (1024*1024), 2)} MB"
+                        else:
+                            size_str = get_real_size(f.get('url'))
+
+                        # Penamaan Cerdas 
+                        label = f"{h}p HD" if h >= 720 else (f"{h}p SD" if h > 0 else "Video Standar")
+                        
+                        # Khusus pemisah TikTok (No Watermark = Premium, Watermark = Gratis)
+                        if 'watermark' in format_note and 'no' not in format_note:
+                            label = "Dengan Watermark"
+                        elif platform == 'tiktok':
+                            label = "Tanpa Watermark (HD)"
 
                         available_formats.append({
                             'height': h,
-                            'label': f"{h}p HD" if h >= 720 else f"{h}p SD",
+                            'label': label,
                             'size': size_str,
-                            'direct_url': f.get('url') # Link Asli Sosmed
+                            'direct_url': f.get('url')
                         })
         
-        # Fallback untuk TikTok/IG yang hanya 1 format
+        # Jika benar-benar kosong (fallback darurat)
         if not available_formats:
+            size_str = get_real_size(info.get('url'))
             available_formats.append({
                 'height': 720,
                 'label': 'Video Asli (Optimal)',
-                'size': 'Resolusi Penuh',
+                'size': size_str,
                 'direct_url': info.get('url')
             })
 
+        # Urutkan dari HD ke rendah
         available_formats.sort(key=lambda x: x['height'], reverse=True)
 
         return jsonify({
@@ -104,9 +132,8 @@ def get_info():
         })
 
     except Exception as e:
-        return jsonify({'success': False, 'message': 'Gagal mengambil data. Pastikan link publik/tidak di-private.'})
+        return jsonify({'success': False, 'message': 'Gagal mengambil data. Pastikan link publik.'})
 
-# --- FITUR EMAIL SARAN ---
 @app.route('/api/send-feedback', methods=['POST'])
 def send_feedback():
     data = request.json
@@ -117,13 +144,11 @@ def send_feedback():
     if not sender_name or not sender_email or not message:
         return jsonify({'success': False, 'message': 'Data tidak lengkap!'})
 
-    # Mengambil Email dan Password dari Brankas Vercel (ENV)
     MY_EMAIL = os.getenv('EMAIL_ADDRESS')
     APP_PASSWORD = os.getenv('EMAIL_APP_PASSWORD')
 
-    # Cegah error website kalau Ozi lupa masukin ENV di Vercel
     if not MY_EMAIL or not APP_PASSWORD:
-        return jsonify({'success': False, 'message': 'Sistem email sedang dalam perbaikan (ENV belum lengkap).'})
+        return jsonify({'success': False, 'message': 'ENV Vercel belum disetting.'})
 
     msg = MIMEMultipart()
     msg['From'] = f"{sender_name} via Downloader <{MY_EMAIL}>" 
@@ -131,14 +156,7 @@ def send_feedback():
     msg['Subject'] = f"💡 Saran Baru dari: {sender_name}"
     msg['Reply-To'] = sender_email 
 
-    body = f"""Halo Ozi! Ada saran/feedback baru masuk:
-Nama   : {sender_name}
-Email  : {sender_email}
-Pesan  :
-"{message}"
-=========================================
-Sistem Otomatis - Video Downloader 2026 Vercel"""
-    
+    body = f"Dari: {sender_name}\nEmail: {sender_email}\nPesan:\n{message}"
     msg.attach(MIMEText(body, 'plain'))
 
     try:
