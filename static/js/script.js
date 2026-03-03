@@ -68,30 +68,35 @@ document.getElementById('get-info-btn').addEventListener('click', async () => {
                 const btn = document.createElement('button');
                 btn.className = 'format-btn';
                 
-                // --- LOGIKA PREMIUM EMAS UNTUK 720p ---
+                // --- LOGIKA PREMIUM (Iklan) vs GRATIS ---
                 let isPremium = false;
-                if (fmt.height >= 720 || fmt.label.includes('Asli')) {
+                // Jika 720p ATAU Tanpa Watermark ATAU Asli = Premium
+                if (fmt.height >= 720 || fmt.label.includes('Tanpa Watermark') || fmt.label.includes('Asli')) {
                     isPremium = true;
                     btn.innerHTML = `⭐ ${fmt.label} <br> <span>${fmt.size}</span>`;
                     btn.style.borderColor = "#f39c12"; 
                     btn.style.color = "#f39c12";
                 } else {
+                    // Yang Gratis (144p - 480p, atau Dengan Watermark)
                     btn.innerHTML = `${fmt.label} <br> <span>${fmt.size}</span>`;
                 }
                 
                 btn.onclick = () => {
                     document.getElementById('download-progress').classList.remove('hidden');
                     
-                    // Link langsung ke file MP4 di server Sosmed (Lolos aturan 10 detik Vercel)
-                    const downloadUrl = fmt.direct_url; 
-                    
                     if (isPremium) {
-                        // JALUR CUAN: Tab Iklan Terbuka!
+                        // JALUR CUAN: Buka link Adsterra Ozi
                         window.open('https://www.effectivegatecpm.com/tpqt0xke?key=bcb3609dcf1e2f1db3932fd01ace6203', '_blank'); 
                     }
                     
-                    // Arahkan tab saat ini untuk mengunduh videonya
-                    window.location.href = downloadUrl;
+                    // JALUR ANTI-403 ERROR (Trik Ghost Link no-referrer)
+                    const ghostLink = document.createElement('a');
+                    ghostLink.href = fmt.direct_url;
+                    ghostLink.target = '_blank';
+                    ghostLink.rel = 'noreferrer'; // Ini sihir yang menghapus jejak Vercel agar TikTok tidak marah
+                    document.body.appendChild(ghostLink);
+                    ghostLink.click();
+                    document.body.removeChild(ghostLink);
 
                     setTimeout(() => {
                         document.getElementById('download-progress').classList.add('hidden');
@@ -112,7 +117,7 @@ document.getElementById('get-info-btn').addEventListener('click', async () => {
     }
 });
 
-// Form Saran
+// Logika Saran Email (Tetap sama)
 document.getElementById('feedback-form').addEventListener('submit', async (e) => {
     e.preventDefault(); 
     const btnSubmit = e.target.querySelector('button');
@@ -132,14 +137,14 @@ document.getElementById('feedback-form').addEventListener('submit', async (e) =>
         });
         const data = await response.json();
         if (data.success) {
-            btnSubmit.innerText = "Terkirim! Makasih.";
+            btnSubmit.innerText = "Terkirim!";
             btnSubmit.style.background = "#2ecc71"; 
         } else {
-            btnSubmit.innerText = "Gagal Mengirim!";
+            btnSubmit.innerText = "Gagal!";
             btnSubmit.style.background = "#e74c3c"; 
         }
     } catch (error) {
-        btnSubmit.innerText = "Error Server!";
+        btnSubmit.innerText = "Error!";
         btnSubmit.style.background = "#e74c3c";
     }
     
