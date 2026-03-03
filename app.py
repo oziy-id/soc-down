@@ -7,7 +7,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
-import requests # Alat Radar MB
+import requests 
 
 app = Flask(__name__)
 
@@ -33,7 +33,6 @@ def proxy_thumb():
     except Exception as e:
         return redirect("https://via.placeholder.com/300x180?text=Thumbnail+Privasi+(Aman)")
 
-# FUNGSI RADAR: Mengecek MB secara real tanpa mendownload full video
 def get_real_size(url):
     try:
         r = requests.head(url, timeout=2, allow_redirects=True)
@@ -42,7 +41,7 @@ def get_real_size(url):
             return f"{round(size_bytes / (1024*1024), 2)} MB"
     except:
         pass
-    return "Ukuran Asli" # Jika server sosmed benar-benar mengunci infonya
+    return "Ukuran Asli" 
 
 @app.route('/api/get-info', methods=['POST'])
 def get_info():
@@ -53,8 +52,16 @@ def get_info():
     if not url:
         return jsonify({'success': False, 'message': 'Tautan tidak boleh kosong!'})
 
+    # Bypass URL Twitter/X
     url = url.replace('https://x.com/', 'https://twitter.com/')
     url = url.replace('x.com', 'twitter.com')
+
+    # --- FITUR BARU: PEMBERSIH LINK YOUTUBE ---
+    # Menghapus embel-embel '?si=xxx' yang bikin error
+    if 'youtu.be/' in url:
+        url = url.split('?')[0]
+    elif 'youtube.com/watch' in url:
+        url = url.split('&si=')[0]
 
     ydl_opts = {'quiet': True, 'no_warnings': True}
 
@@ -80,25 +87,19 @@ def get_info():
             acodec = f.get('acodec')
             format_note = str(f.get('format_note', '')).lower()
 
-            # Syarat lolos: Punya gambar & suara, ATAU khusus tiktok (watermark logic)
             if (vcodec != 'none' and acodec != 'none') or ('watermark' in format_note):
-                # Batasi maksimal 720p agar Vercel aman
                 if h <= 720: 
-                    # Filter agar tidak duplikat resolusi
                     if h not in seen_res or h == 0:
                         if h > 0: seen_res.add(h)
                         
-                        # Cek MB Real
                         size = f.get('filesize') or f.get('filesize_approx')
                         if size:
                             size_str = f"{round(size / (1024*1024), 2)} MB"
                         else:
                             size_str = get_real_size(f.get('url'))
 
-                        # Penamaan Cerdas 
                         label = f"{h}p HD" if h >= 720 else (f"{h}p SD" if h > 0 else "Video Standar")
                         
-                        # Khusus pemisah TikTok (No Watermark = Premium, Watermark = Gratis)
                         if 'watermark' in format_note and 'no' not in format_note:
                             label = "Dengan Watermark"
                         elif platform == 'tiktok':
@@ -111,7 +112,6 @@ def get_info():
                             'direct_url': f.get('url')
                         })
         
-        # Jika benar-benar kosong (fallback darurat)
         if not available_formats:
             size_str = get_real_size(info.get('url'))
             available_formats.append({
@@ -121,7 +121,6 @@ def get_info():
                 'direct_url': info.get('url')
             })
 
-        # Urutkan dari HD ke rendah
         available_formats.sort(key=lambda x: x['height'], reverse=True)
 
         return jsonify({
@@ -132,7 +131,8 @@ def get_info():
         })
 
     except Exception as e:
-        return jsonify({'success': False, 'message': 'Gagal mengambil data. Pastikan link publik.'})
+        # Menampilkan pesan error asli dari server YouTube/TikTok agar gampang dianalisa
+        return jsonify({'success': False, 'message': f'Error Server: {str(e)}'})
 
 @app.route('/api/send-feedback', methods=['POST'])
 def send_feedback():
