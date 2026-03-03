@@ -33,7 +33,6 @@ def proxy_thumb():
     except Exception as e:
         return redirect("https://via.placeholder.com/300x180?text=Thumbnail+Privasi+(Aman)")
 
-# FUNGSI RADAR: Mengecek MB asli dari server
 def get_real_size(url):
     try:
         r = requests.head(url, timeout=2, allow_redirects=True)
@@ -53,21 +52,38 @@ def get_info():
     if not url:
         return jsonify({'success': False, 'message': 'Tautan tidak boleh kosong!'})
 
-    # Bypass URL Twitter/X
     url = url.replace('https://x.com/', 'https://twitter.com/')
     url = url.replace('x.com', 'twitter.com')
 
-    # Pembersih Link YouTube
     if 'youtu.be/' in url:
         url = url.split('?')[0]
     elif 'youtube.com/watch' in url:
         url = url.split('&si=')[0]
 
+    # --- FITUR DEWA: MEMBACA COOKIES DARI VERCEL ENV ---
+    COOKIE_FILE = '/tmp/cookies.txt'
+    cookie_env = os.getenv('COOKIES_TXT') # Kita akan taruh kode rahasianya di Vercel
+
+    # Jika ada cookies di Vercel, Python akan membuat file rahasia di sistem
+    if cookie_env:
+        try:
+            with open(COOKIE_FILE, 'w', encoding='utf-8') as f:
+                f.write(cookie_env)
+        except Exception as e:
+            pass
+
+    # Pengaturan Mesin Pengebor Video
     ydl_opts = {
         'quiet': True, 
         'no_warnings': True,
-        'extractor_args': {'youtube': ['player_client=android,web']}
     }
+
+    # Pasangkan tiket VIP (Cookies) jika filenya berhasil dibuat
+    if os.path.exists(COOKIE_FILE):
+        ydl_opts['cookiefile'] = COOKIE_FILE
+    else:
+        # Jika belum pasang cookies, pakai trik penyamaran Android sebagai cadangan
+        ydl_opts['extractor_args'] = {'youtube': ['player_client=android,web']}
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -92,19 +108,16 @@ def get_info():
             acodec = f.get('acodec')
             format_note = str(f.get('format_note', '')).lower()
 
-            # Hanya ambil format yang punya video + audio (menyatu) dan berupa MP4
             if ext == 'mp4' and vcodec != 'none' and acodec != 'none':
                 if h and h not in seen_res:
                     seen_res.add(h)
                     
-                    # Cek ukuran MB Real
                     size = f.get('filesize') or f.get('filesize_approx')
                     if size:
                         size_str = f"{round(size / (1024*1024), 2)} MB"
                     else:
                         size_str = get_real_size(f.get('url'))
 
-                    # Nama tombol cerdas
                     label = f"{h}p"
                     if 'watermark' in format_note and 'no' not in format_note:
                         label += " (Watermark)"
@@ -118,12 +131,10 @@ def get_info():
                         'direct_url': f.get('url')
                     })
         
-        # Fallback darurat jika filter di atas kosong (biasanya TikTok/IG yang formatnya aneh)
         if not available_formats:
             best_url = info.get('url')
             size_str = get_real_size(best_url)
             
-            # Cek apakah ini video tanpa watermark dari TikTok
             label_bawaan = 'Video Bawaan'
             if platform == 'tiktok':
                 label_bawaan = 'Tanpa Watermark (Optimal)'
@@ -135,7 +146,6 @@ def get_info():
                 'direct_url': best_url
             })
 
-        # Urutkan dari resolusi tertinggi ke terendah
         available_formats.sort(key=lambda x: str(x['height']) if x['height'] != 'Auto' else '0', reverse=True)
 
         return jsonify({
