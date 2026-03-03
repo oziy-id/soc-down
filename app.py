@@ -33,6 +33,7 @@ def proxy_thumb():
     except Exception as e:
         return redirect("https://via.placeholder.com/300x180?text=Thumbnail+Privasi+(Aman)")
 
+# FUNGSI RADAR: Mengecek MB asli dari server
 def get_real_size(url):
     try:
         r = requests.head(url, timeout=2, allow_redirects=True)
@@ -52,21 +53,20 @@ def get_info():
     if not url:
         return jsonify({'success': False, 'message': 'Tautan tidak boleh kosong!'})
 
+    # Bypass URL Twitter/X
     url = url.replace('https://x.com/', 'https://twitter.com/')
     url = url.replace('x.com', 'twitter.com')
 
+    # Pembersih Link YouTube
     if 'youtu.be/' in url:
         url = url.split('?')[0]
     elif 'youtube.com/watch' in url:
         url = url.split('&si=')[0]
 
-    # --- TRIK JUBAH PENYAMARAN ANTI-BOT YOUTUBE ---
     ydl_opts = {
         'quiet': True, 
         'no_warnings': True,
-        'extractor_args': {
-            'youtube': ['player_client=android,web'] # Menyamar sebagai HP Android
-        }
+        'extractor_args': {'youtube': ['player_client=android,web']}
     }
 
     try:
@@ -86,46 +86,57 @@ def get_info():
         seen_res = set()
         
         for f in info.get('formats', []):
-            h = f.get('height') or 0
+            h = f.get('height')
+            ext = f.get('ext', '')
             vcodec = f.get('vcodec')
             acodec = f.get('acodec')
             format_note = str(f.get('format_note', '')).lower()
 
-            if (vcodec != 'none' and acodec != 'none') or ('watermark' in format_note):
-                if h <= 720: 
-                    if h not in seen_res or h == 0:
-                        if h > 0: seen_res.add(h)
-                        
-                        size = f.get('filesize') or f.get('filesize_approx')
-                        if size:
-                            size_str = f"{round(size / (1024*1024), 2)} MB"
-                        else:
-                            size_str = get_real_size(f.get('url'))
+            # Hanya ambil format yang punya video + audio (menyatu) dan berupa MP4
+            if ext == 'mp4' and vcodec != 'none' and acodec != 'none':
+                if h and h not in seen_res:
+                    seen_res.add(h)
+                    
+                    # Cek ukuran MB Real
+                    size = f.get('filesize') or f.get('filesize_approx')
+                    if size:
+                        size_str = f"{round(size / (1024*1024), 2)} MB"
+                    else:
+                        size_str = get_real_size(f.get('url'))
 
-                        label = f"{h}p HD" if h >= 720 else (f"{h}p SD" if h > 0 else "Video Standar")
-                        
-                        if 'watermark' in format_note and 'no' not in format_note:
-                            label = "Dengan Watermark"
-                        elif platform == 'tiktok':
-                            label = "Tanpa Watermark (HD)"
+                    # Nama tombol cerdas
+                    label = f"{h}p"
+                    if 'watermark' in format_note and 'no' not in format_note:
+                        label += " (Watermark)"
+                    elif platform == 'tiktok':
+                        label += " (Tanpa Watermark)"
 
-                        available_formats.append({
-                            'height': h,
-                            'label': label,
-                            'size': size_str,
-                            'direct_url': f.get('url')
-                        })
+                    available_formats.append({
+                        'height': h,
+                        'label': label,
+                        'size': size_str,
+                        'direct_url': f.get('url')
+                    })
         
+        # Fallback darurat jika filter di atas kosong (biasanya TikTok/IG yang formatnya aneh)
         if not available_formats:
-            size_str = get_real_size(info.get('url'))
+            best_url = info.get('url')
+            size_str = get_real_size(best_url)
+            
+            # Cek apakah ini video tanpa watermark dari TikTok
+            label_bawaan = 'Video Bawaan'
+            if platform == 'tiktok':
+                label_bawaan = 'Tanpa Watermark (Optimal)'
+
             available_formats.append({
-                'height': 720,
-                'label': 'Video Asli (Optimal)',
+                'height': info.get('height') or 'Auto',
+                'label': label_bawaan,
                 'size': size_str,
-                'direct_url': info.get('url')
+                'direct_url': best_url
             })
 
-        available_formats.sort(key=lambda x: x['height'], reverse=True)
+        # Urutkan dari resolusi tertinggi ke terendah
+        available_formats.sort(key=lambda x: str(x['height']) if x['height'] != 'Auto' else '0', reverse=True)
 
         return jsonify({
             'success': True,
@@ -135,7 +146,7 @@ def get_info():
         })
 
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Error Server: {str(e)}'})
+        return jsonify({'success': False, 'message': f'Gagal: {str(e)}'})
 
 @app.route('/api/send-feedback', methods=['POST'])
 def send_feedback():
