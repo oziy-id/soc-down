@@ -68,58 +68,27 @@ document.getElementById('get-info-btn').addEventListener('click', async () => {
                 const btn = document.createElement('button');
                 btn.className = 'format-btn';
                 
-                // --- LOGIKA PREMIUM (HANYA YOUTUBE 720p) ---
-                let isPremium = false;
-                // Cek apakah platform yang dipilih adalah YouTube DAN tingginya 720 ke atas
-                if (selectedPlatform === 'youtube' && fmt.height >= 720) {
-                    isPremium = true;
-                    btn.innerHTML = `⭐ Premium ${fmt.label} <br> <span>${fmt.size}</span>`;
-                    btn.style.borderColor = "#f39c12"; 
-                    btn.style.color = "#f39c12";
-                } else {
-                    // JALUR GRATIS (Semua Sosmed lain & YT < 720p)
-                    btn.innerHTML = `${fmt.label} <br> <span>${fmt.size}</span>`;
-                }
+                // Tampilan tombol yang bersih
+                btn.innerHTML = `${fmt.label} <br> <span>${fmt.size}</span>`;
                 
                 btn.onclick = () => {
                     const progressDiv = document.getElementById('download-progress');
                     progressDiv.classList.remove('hidden');
+                    progressDiv.innerHTML = `✅ Membuka video... Klik ikon "Titik Tiga" di pojok kanan bawah lalu pilih Download!`;
+                    progressDiv.style.color = "#2ecc71";
                     
-                    if (isPremium) {
-                        // JALUR CUAN (Dengan Hitung Mundur 5 Detik Buatan)
-                        let timeLeft = 5;
-                        progressDiv.innerHTML = `⏳ Menyiapkan video HD... Iklan muncul dalam ${timeLeft} detik.`;
-                        progressDiv.style.color = "#f39c12";
-                        
-                        // Buka iklan Adsterra Ozi di tab baru
-                        window.open('https://www.effectivegatecpm.com/tpqt0xke?key=bcb3609dcf1e2f1db3932fd01ace6203', '_blank');
+                    // JALUR ANTI-403 ERROR (Trik Ghost Link no-referrer)
+                    const ghostLink = document.createElement('a');
+                    ghostLink.href = fmt.direct_url;
+                    ghostLink.target = '_blank';
+                    ghostLink.rel = 'noreferrer'; // Trik jubah gaib
+                    document.body.appendChild(ghostLink);
+                    ghostLink.click();
+                    document.body.removeChild(ghostLink);
 
-                        // Memulai Timer
-                        const countdown = setInterval(() => {
-                            timeLeft -= 1;
-                            progressDiv.innerHTML = `⏳ Menyiapkan video HD... Menuju tautan dalam ${timeLeft} detik.`;
-                            
-                            if (timeLeft <= 0) {
-                                clearInterval(countdown);
-                                progressDiv.innerHTML = `✅ Mengalihkan ke video... Klik "Titik Tiga" lalu pilih Download!`;
-                                progressDiv.style.color = "#2ecc71";
-                                
-                                // Buka Video
-                                openVideoLink(fmt.direct_url);
-                                
-                                setTimeout(() => { progressDiv.classList.add('hidden'); }, 4000);
-                            }
-                        }, 1000); // 1000ms = 1 detik
-
-                    } else {
-                        // JALUR GRATIS (Langsung Buka Tanpa Tunggu)
-                        progressDiv.innerHTML = `✅ Membuka video... Klik ikon "Titik Tiga" di pojok kanan bawah video lalu pilih Download!`;
-                        progressDiv.style.color = "#2ecc71";
-                        
-                        openVideoLink(fmt.direct_url);
-
-                        setTimeout(() => { progressDiv.classList.add('hidden'); }, 4000);
-                    }
+                    setTimeout(() => {
+                        progressDiv.classList.add('hidden');
+                    }, 4000);
                 };
                 formatsList.appendChild(btn);
             });
@@ -136,18 +105,7 @@ document.getElementById('get-info-btn').addEventListener('click', async () => {
     }
 });
 
-// Fungsi Anti-403 Error & Buka Video
-function openVideoLink(url) {
-    const ghostLink = document.createElement('a');
-    ghostLink.href = url;
-    ghostLink.target = '_blank';
-    ghostLink.rel = 'noreferrer'; // Trik jubat gaib agar server sosmed tidak memblokir Vercel
-    document.body.appendChild(ghostLink);
-    ghostLink.click();
-    document.body.removeChild(ghostLink);
-}
-
-// Logika Saran Email 
+// Form Saran
 document.getElementById('feedback-form').addEventListener('submit', async (e) => {
     e.preventDefault(); 
     const btnSubmit = e.target.querySelector('button');
