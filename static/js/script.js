@@ -68,39 +68,58 @@ document.getElementById('get-info-btn').addEventListener('click', async () => {
                 const btn = document.createElement('button');
                 btn.className = 'format-btn';
                 
-                // --- LOGIKA PREMIUM (Iklan) vs GRATIS ---
+                // --- LOGIKA PREMIUM (HANYA YOUTUBE 720p) ---
                 let isPremium = false;
-                // Jika 720p ATAU Tanpa Watermark ATAU Asli = Premium
-                if (fmt.height >= 720 || fmt.label.includes('Tanpa Watermark') || fmt.label.includes('Asli')) {
+                // Cek apakah platform yang dipilih adalah YouTube DAN tingginya 720 ke atas
+                if (selectedPlatform === 'youtube' && fmt.height >= 720) {
                     isPremium = true;
-                    btn.innerHTML = `⭐ ${fmt.label} <br> <span>${fmt.size}</span>`;
+                    btn.innerHTML = `⭐ Premium ${fmt.label} <br> <span>${fmt.size}</span>`;
                     btn.style.borderColor = "#f39c12"; 
                     btn.style.color = "#f39c12";
                 } else {
-                    // Yang Gratis (144p - 480p, atau Dengan Watermark)
+                    // JALUR GRATIS (Semua Sosmed lain & YT < 720p)
                     btn.innerHTML = `${fmt.label} <br> <span>${fmt.size}</span>`;
                 }
                 
                 btn.onclick = () => {
-                    document.getElementById('download-progress').classList.remove('hidden');
+                    const progressDiv = document.getElementById('download-progress');
+                    progressDiv.classList.remove('hidden');
                     
                     if (isPremium) {
-                        // JALUR CUAN: Buka link Adsterra Ozi
-                        window.open('https://www.effectivegatecpm.com/tpqt0xke?key=bcb3609dcf1e2f1db3932fd01ace6203', '_blank'); 
-                    }
-                    
-                    // JALUR ANTI-403 ERROR (Trik Ghost Link no-referrer)
-                    const ghostLink = document.createElement('a');
-                    ghostLink.href = fmt.direct_url;
-                    ghostLink.target = '_blank';
-                    ghostLink.rel = 'noreferrer'; // Ini sihir yang menghapus jejak Vercel agar TikTok tidak marah
-                    document.body.appendChild(ghostLink);
-                    ghostLink.click();
-                    document.body.removeChild(ghostLink);
+                        // JALUR CUAN (Dengan Hitung Mundur 5 Detik Buatan)
+                        let timeLeft = 5;
+                        progressDiv.innerHTML = `⏳ Menyiapkan video HD... Iklan muncul dalam ${timeLeft} detik.`;
+                        progressDiv.style.color = "#f39c12";
+                        
+                        // Buka iklan Adsterra Ozi di tab baru
+                        window.open('https://www.effectivegatecpm.com/tpqt0xke?key=bcb3609dcf1e2f1db3932fd01ace6203', '_blank');
 
-                    setTimeout(() => {
-                        document.getElementById('download-progress').classList.add('hidden');
-                    }, 5000);
+                        // Memulai Timer
+                        const countdown = setInterval(() => {
+                            timeLeft -= 1;
+                            progressDiv.innerHTML = `⏳ Menyiapkan video HD... Menuju tautan dalam ${timeLeft} detik.`;
+                            
+                            if (timeLeft <= 0) {
+                                clearInterval(countdown);
+                                progressDiv.innerHTML = `✅ Mengalihkan ke video... Klik "Titik Tiga" lalu pilih Download!`;
+                                progressDiv.style.color = "#2ecc71";
+                                
+                                // Buka Video
+                                openVideoLink(fmt.direct_url);
+                                
+                                setTimeout(() => { progressDiv.classList.add('hidden'); }, 4000);
+                            }
+                        }, 1000); // 1000ms = 1 detik
+
+                    } else {
+                        // JALUR GRATIS (Langsung Buka Tanpa Tunggu)
+                        progressDiv.innerHTML = `✅ Membuka video... Klik ikon "Titik Tiga" di pojok kanan bawah video lalu pilih Download!`;
+                        progressDiv.style.color = "#2ecc71";
+                        
+                        openVideoLink(fmt.direct_url);
+
+                        setTimeout(() => { progressDiv.classList.add('hidden'); }, 4000);
+                    }
                 };
                 formatsList.appendChild(btn);
             });
@@ -117,7 +136,18 @@ document.getElementById('get-info-btn').addEventListener('click', async () => {
     }
 });
 
-// Logika Saran Email (Tetap sama)
+// Fungsi Anti-403 Error & Buka Video
+function openVideoLink(url) {
+    const ghostLink = document.createElement('a');
+    ghostLink.href = url;
+    ghostLink.target = '_blank';
+    ghostLink.rel = 'noreferrer'; // Trik jubat gaib agar server sosmed tidak memblokir Vercel
+    document.body.appendChild(ghostLink);
+    ghostLink.click();
+    document.body.removeChild(ghostLink);
+}
+
+// Logika Saran Email 
 document.getElementById('feedback-form').addEventListener('submit', async (e) => {
     e.preventDefault(); 
     const btnSubmit = e.target.querySelector('button');
